@@ -1,0 +1,200 @@
+/* 1920×1080 base canvas, scaled proportionally via transform. A resolution
+   change only changes the scale factor, never the layout — a wall screen whose
+   panels moved would have to be re-framed on site.
+
+   Visually this is a command screen, not a web page: an interactive 3D earth
+   in the centre, data rails on both wings. The 3D piece does navigation work
+   (click a city / a route → drill down), not decoration — decorative 3D on a
+   wall screen only steals attention from the readouts. */
+:root{
+  --bg:#05070b; --panel:#0b0f16; --raised:#111826; --ink:#e8eef7; --muted:#7d8b9e; --faint:#4d5a6b;
+  --line:#1a2534; --line-soft:#131c28;
+  --accent:#49b3ff; --accent-ink:#04101c; --accent-soft:#0d2133;
+  --pos:#3fd0a4; --neg:#ff7a6b; --warn:#ffb547;
+  --s1:#49b3ff; --s2:#3fd0a4; --s3:#7c9dff; --s4:#38d6d0; --s5:#ffb547; --s6:#ff7a6b;
+  --c1:var(--s1); --c2:var(--s3); --c3:var(--s2); --c4:var(--s5); --c5:var(--s6); --c6:var(--s4);
+  --pos-soft:#0c2119; --neg-soft:#21120f; --warn-soft:#221a0c;
+  --fg:var(--ink); --dim:var(--faint); --panel2:var(--raised);
+  --shadow:none; --accent-soft2:var(--accent-soft);
+  /* Tokens the earth shaders read — recomputed on a theme flip.
+     Dark: night side held at 26%, coastlines traced in bright cyan-blue, city lights in warm amber. */
+  --globe-deep:#050b14; --globe-sea:#12314f; --globe-land:#4c9ada; --globe-landnight:#16324e;
+  --globe-city:#ffb85c; --globe-coast:#8fd0ff; --globe-grid:#2b465e; --globe-air:#49b3ff;
+  --globe-night-k:.26; --globe-air-a:1; --globe-coast-a:.9; --globe-grid-a:.1; --globe-orbit-a:.34;
+}
+[data-theme=light]{
+  --bg:#eef1f6; --panel:#ffffff; --raised:#f4f7fb; --ink:#0e1620; --muted:#566374; --faint:#8593a5;
+  --line:#dbe2ec; --line-soft:#e9eef5;
+  --accent:#0b6fbf; --accent-ink:#ffffff; --accent-soft:#e2effb;
+  --pos:#12805f; --neg:#c04434; --warn:#9a6206;
+  --s1:#0b6fbf; --s2:#12805f; --s3:#4457b8; --s4:#127a76; --s5:#9a6206; --s6:#c04434;
+  --c1:var(--s1); --c2:var(--s3); --c3:var(--s2); --c4:var(--s5); --c5:var(--s6); --c6:var(--s4);
+  --pos-soft:#e8f4ef; --neg-soft:#fbecea; --warn-soft:#f8f0df;
+  /* Light: not a "daytime earth" but a porcelain globe — atmosphere glow off,
+     ink coastlines for definition. Glow on a white ground reads as noise. */
+  --globe-deep:#dfe7f1; --globe-sea:#f4f8fc; --globe-land:#4a7ba6; --globe-landnight:#b9c8d8;
+  --globe-city:#c47a1e; --globe-coast:#1d456b; --globe-grid:#b5c6d8; --globe-air:#7fa8cc;
+  --globe-night-k:.86; --globe-air-a:.22; --globe-coast-a:.75; --globe-grid-a:.16; --globe-orbit-a:.22;
+}
+html{color-scheme:dark light}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:var(--bg)}
+body{font:16px/1.4 var(--sans);color:var(--fg);-webkit-font-smoothing:antialiased}
+
+/* The stage is sized and scaled by fit(), not by the layout.
+
+   1920×1080 is the DESIGN canvas, not a fixed one. Scaling it to `contain`
+   would letterbox any viewport that isn't 16:9 — correct for a video, wrong
+   for a wall screen, which is expected to reach every edge.
+   So fit() scales by the smaller ratio (nothing is ever cropped or stretched)
+   and then grows the stage in DESIGN UNITS along whichever axis has slack. The
+   grid below is fluid — 1fr columns and rows — so the extra room is absorbed by
+   the panels instead of by a letterbox. */
+#stage{transform-origin:0 0;position:absolute;left:0;top:0;display:flex;flex-direction:column;
+       background:
+         radial-gradient(1100px 620px at 50% 42%,color-mix(in srgb,var(--accent) 9%,transparent) 0%,transparent 68%),
+         radial-gradient(1400px 800px at 50% -14%,var(--raised) 0%,var(--bg) 60%)}
+/* Scanlines: one every 3px, held at 3% — present only in peripheral vision */
+#stage:before{content:'';position:absolute;inset:0;pointer-events:none;z-index:3;
+  background:linear-gradient(color-mix(in srgb,var(--ink) 3%,transparent) 1px,transparent 1px) 0 0/100% 3px}
+#space{position:absolute;inset:0;z-index:0}
+
+/* ── top bar ── */
+.top{height:84px;flex:none;display:flex;align-items:center;padding:0 34px;gap:20px;position:relative;z-index:4}
+.top:after{content:'';position:absolute;left:34px;right:34px;bottom:0;height:1px;
+  background:linear-gradient(90deg,transparent,var(--c1),transparent);opacity:.5}
+.title{font-size:32px;font-weight:700;letter-spacing:.1em;color:var(--ink)}
+.title small{display:block;font-size:12px;letter-spacing:.28em;color:var(--dim);font-weight:400;margin-top:3px}
+.spacer{flex:1}
+.clock{font-size:21px;font-variant-numeric:tabular-nums;letter-spacing:.04em}
+.clock small{display:block;font-size:12px;color:var(--muted);letter-spacing:.1em;text-align:right}
+.live{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--c3);
+  border:1px solid color-mix(in srgb,var(--c3) 35%,transparent);
+  background:color-mix(in srgb,var(--c3) 9%,transparent);padding:6px 13px;border-radius:99px}
+.live.off{color:var(--c5);border-color:color-mix(in srgb,var(--c5) 40%,transparent);
+  background:color-mix(in srgb,var(--c5) 10%,transparent)}
+.blip{width:7px;height:7px;border-radius:50%;background:currentColor;animation:bl 1.6s infinite}
+@keyframes bl{0%,100%{opacity:1}50%{opacity:.25}}
+
+/* ── three columns: two data rails flanking the 3D hero ── */
+.body{flex:1;min-height:0;padding:14px 30px 22px;display:grid;gap:14px;
+      grid-template-columns:432px 1fr 432px;position:relative;z-index:2}
+.col{display:grid;gap:14px;grid-template-rows:1fr 1fr 1fr;min-height:0}
+.mid{display:grid;gap:14px;grid-template-rows:auto 1fr 238px;min-height:0}
+
+.card{background:linear-gradient(180deg,color-mix(in srgb,var(--panel2) 78%,transparent),
+                                        color-mix(in srgb,var(--panel) 82%,transparent));
+      border:1px solid var(--line);border-radius:6px;position:relative;
+      display:flex;flex-direction:column;min-width:0;min-height:0;backdrop-filter:blur(9px)}
+.card:before,.card:after{content:'';position:absolute;width:12px;height:12px;border:2px solid var(--c1);opacity:.85}
+.card:before{left:-1px;top:-1px;border-right:0;border-bottom:0}
+.card:after{right:-1px;bottom:-1px;border-left:0;border-top:0}
+.card>h2{font-size:17px;font-weight:600;letter-spacing:.06em;padding:11px 16px 6px;
+  display:flex;align-items:center;gap:10px;color:var(--ink);flex:none}
+.card>h2:before{content:'';width:3px;height:14px;background:var(--c1);border-radius:2px}
+.card>h2 .r{margin-left:auto;font-size:13px;color:var(--muted);font-weight:400;letter-spacing:.02em}
+.chart{flex:1;min-height:0}
+
+/* ── KPI band ── */
+.kpibar{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+.kpi{background:linear-gradient(180deg,color-mix(in srgb,var(--panel2) 76%,transparent),
+                                       color-mix(in srgb,var(--panel) 80%,transparent));
+     border:1px solid var(--line);border-radius:6px;padding:11px 16px;position:relative;overflow:hidden;
+     backdrop-filter:blur(9px)}
+.kpi:after{content:'';position:absolute;left:16px;right:16px;bottom:0;height:1px;
+  background:linear-gradient(90deg,var(--accent),transparent 72%);opacity:.55}
+.kpi .l{font-size:14px;color:var(--muted);letter-spacing:.05em}
+.kpi .v{font-size:40px;font-weight:700;line-height:1.05;margin:2px 0 1px;font-variant-numeric:tabular-nums;
+  color:var(--ink);white-space:nowrap}
+.kpi .v u{font-size:18px;text-decoration:none;color:var(--muted);margin-left:5px}
+.kpi .d{font-size:13.5px;font-weight:600}
+.kpi .d.up{color:var(--c3)} .kpi .d.down{color:var(--c5)}
+.kpi .d span{color:var(--dim);font-weight:400;margin-left:5px}
+
+/* ── earth hero ── */
+.globe{position:relative;min-height:0;border-radius:8px;overflow:hidden}
+#earth{position:absolute;inset:0}
+/* HUD corner brackets: one right angle per corner, fixed size, no drift with scaling */
+.hud{position:absolute;inset:0;pointer-events:none}
+.hud i{position:absolute;width:26px;height:26px;border:1px solid color-mix(in srgb,var(--c1) 55%,transparent)}
+.hud i:nth-child(1){left:0;top:0;border-right:0;border-bottom:0}
+.hud i:nth-child(2){right:0;top:0;border-left:0;border-bottom:0}
+.hud i:nth-child(3){left:0;bottom:0;border-right:0;border-top:0}
+.hud i:nth-child(4){right:0;bottom:0;border-left:0;border-top:0}
+.gtitle{position:absolute;left:16px;top:12px;pointer-events:none}
+.gtitle b{font-size:14px;letter-spacing:.24em;color:var(--muted);font-weight:500}
+.gtitle small{display:block;font-size:10.5px;letter-spacing:.2em;color:var(--dim);margin-top:2px}
+/* Readout bar: the earth is a navigation piece, so a selection must be acknowledged in text — otherwise the user cannot tell the click landed */
+.readout{position:absolute;left:14px;bottom:12px;display:flex;gap:10px;align-items:center;
+  font-size:13px;color:var(--muted);background:color-mix(in srgb,var(--panel) 72%,transparent);
+  border:1px solid var(--line);border-radius:5px;padding:7px 12px;backdrop-filter:blur(8px)}
+.readout b{color:var(--ink);font-weight:600;font-size:15px}
+.readout .k{color:var(--c1);font-family:var(--mono);font-variant-numeric:tabular-nums}
+.ghint{position:absolute;right:14px;bottom:12px;font-size:12px;color:var(--dim);letter-spacing:.08em}
+
+/* ── ranking ── */
+.rank{padding:4px 16px 12px;display:flex;flex-direction:column;justify-content:space-evenly;flex:1;overflow:hidden}
+.rk{display:flex;align-items:center;gap:10px;cursor:pointer;padding:3px 6px;border-radius:4px;margin:0 -6px;
+    transition:background .16s}
+.rk:hover{background:color-mix(in srgb,var(--c1) 8%,transparent)}
+.rk.sel{background:color-mix(in srgb,var(--c1) 16%,transparent)}
+.rk .no{width:23px;height:23px;border-radius:4px;background:var(--line-soft);color:var(--muted);
+  font-size:13px;font-weight:700;display:grid;place-items:center;flex:none;font-variant-numeric:tabular-nums}
+.rk .no.t3{background:linear-gradient(135deg,var(--c1),var(--c6));color:#fff}
+.rk .nm{font-size:16px;width:74px;flex:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rk .track{flex:1;min-width:64px;height:8px;background:var(--raised);border-radius:99px;overflow:hidden}
+.rk .fill{height:100%;background:linear-gradient(90deg,var(--c1),var(--c6));border-radius:99px;
+  box-shadow:0 0 12px color-mix(in srgb,var(--c1) 55%,transparent)}
+.rk .v{font-size:17px;font-weight:650;font-variant-numeric:tabular-nums;width:76px;text-align:right}
+.rk .p{font-size:14px;width:48px;text-align:right;font-variant-numeric:tabular-nums}
+
+/* ── route table ── */
+.routes{flex:1;overflow:hidden;padding:2px 16px 12px;display:flex;flex-direction:column;justify-content:space-evenly}
+.rt{display:flex;align-items:center;gap:9px;font-size:14.5px;cursor:pointer;padding:4px 6px;margin:0 -6px;
+    border-radius:4px;transition:background .16s}
+.rt:hover{background:color-mix(in srgb,var(--c1) 8%,transparent)}
+.rt.sel{background:color-mix(in srgb,var(--c1) 16%,transparent)}
+.rt .pair{flex:1;display:flex;align-items:center;gap:7px;min-width:0}
+.rt .pair em{font-style:normal;color:var(--dim)}
+.rt .amt{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:15px;font-weight:600}
+.rt .dl{width:52px;text-align:right;font-size:13px;font-family:var(--mono)}
+
+/* ── alert ticker ── */
+.alerts{padding:2px 16px 12px;overflow:hidden;position:relative;flex:1;min-height:0}
+.alerts .lane{display:flex;flex-direction:column;gap:8px;animation:roll 26s linear infinite}
+@keyframes roll{0%{transform:translateY(0)}100%{transform:translateY(-50%)}}
+.al{display:flex;align-items:center;gap:10px;font-size:15px;padding:7px 11px;border-radius:4px;
+    background:var(--raised);border-left:3px solid var(--c4)}
+.al.hi{border-left-color:var(--c5);background:color-mix(in srgb,var(--c5) 9%,var(--raised))}
+.al .t{color:var(--dim);font-size:13px;font-variant-numeric:tabular-nums;flex:none}
+.al .x{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink)}
+.al .lv{font-size:12px;padding:1px 7px;border-radius:3px;flex:none;font-weight:600}
+.al .lv.a{background:color-mix(in srgb,var(--c5) 22%,transparent);color:var(--c5)}
+.al .lv.b{background:color-mix(in srgb,var(--c4) 20%,transparent);color:var(--c4)}
+
+/* ── drill-down breadcrumb: a flex item inside the top bar; absolute positioning would overlap the left rail ── */
+.crumb{display:flex;align-items:center;gap:9px;font-size:15px;padding-left:26px;
+  border-left:1px solid var(--line);height:34px}
+.crumb button{background:var(--raised);border:1px solid var(--line);color:var(--c1);border-radius:4px;
+  padding:4px 12px;font:inherit;font-size:14px;cursor:pointer}
+.crumb span{color:var(--dim)}
+.crumb .cur{color:var(--fg);font-weight:600}
+
+/* ── tour indicator ── */
+.dots{position:absolute;right:32px;bottom:6px;display:flex;gap:6px;align-items:center;font-size:12px;color:var(--dim);z-index:5}
+.dots i{width:22px;height:3px;border-radius:2px;background:var(--line)}
+.dots i.on{background:var(--c1)}
+
+.mono,.num,.val,.v,.kpi-val,td.n,th.n,.pct,.amt{font-family:var(--mono);
+  font-variant-numeric:tabular-nums;font-feature-settings:"tnum","zero"}
+
+/* human configuration panel (left rail) */
+.cfg{flex:1;display:flex;flex-direction:column;justify-content:space-evenly;
+  padding:6px 18px 14px;font-family:var(--mono);min-height:0}
+.cfg .row{display:flex;justify-content:space-between;align-items:baseline;gap:14px;
+  font-size:13.5px;border-bottom:1px dashed var(--line-soft);padding:3px 0}
+.cfg .row:last-child{border-bottom:0}
+.cfg .k{color:var(--muted);flex:none}
+.cfg .val{color:var(--ink);text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cfg .val.ok{color:var(--c3)}
+.cfg .val.warn{color:var(--c4)}
