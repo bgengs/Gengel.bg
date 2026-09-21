@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Bernie's Command Cockpit</title>
+<style>
+/* The React mount point must not add a box of its own: body itself is the
+   flex/grid container, and an extra <div id="root"> in between breaks the
+   height:100% reference chain — a viewport-filling layout would grow with its
+   content instead (a growing chart container makes ECharts draw screens tall).
+   display:contents gives it no box, keeping the direct body → #stage
+   parent-child relationship. */
+#root{display:contents}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="module" src="/src/main.tsx"></script>
+</body>
+</html>
